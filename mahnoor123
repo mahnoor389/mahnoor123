@@ -1,0 +1,113 @@
+const express = require('express');
+const mysql = require('mysql2');
+const app = express();
+const jwt = require('jsonwebtoken');
+
+const db = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'bank_management'
+});
+
+db.connect(err => {
+    if (err) {
+        console.error('Database connection error:', err);
+        return;
+    }
+    console.log('Connected to MySQL Database.');
+});
+
+const token = jwt.sign(
+    { id: user.UserID, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+);
+
+// Middleware to check required role
+const authorizeRoles = (...allowedRoles) => {
+    return (req, res, next) => {
+        const token = req.headers['authorization'];
+        if (!token) {
+            return res.status(403).json({ message: 'Access denied. No token provided.' });
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = decoded;
+            if (!allowedRoles.includes(req.user.role)) {
+                return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+            }
+
+            next();
+        } catch (err) {
+            return res.status(401).json({ message: 'Invalid or expired token.' });
+        }
+    };
+};
+
+const createTables = () => {
+    const customerTable = `CREATE TABLE IF NOT EXISTS Customer (
+        CustomerID INT AUTO_INCREMENT PRIMARY KEY,
+        Name VARCHAR(100),
+        Address TEXT,
+        Phone VARCHAR(15) UNIQUE,
+        Email VARCHAR(100) UNIQUE,
+        DateOfBirth DATE,
+        JoinDate DATE,
+        BranchID INT
+    )`;
+
+    const accountTable = `CREATE TABLE IF NOT EXISTS Account (
+        AccountID INT AUTO_INCREMENT PRIMARY KEY,
+        CustomerID INT,
+        AccountType ENUM('Savings', 'Current', 'FixedDeposit'),
+        Balance DECIMAL(10, 2),
+        OpenDate DATE,
+        Status ENUM('Active', 'Dormant', 'Closed'),
+        BranchID INT
+    )`;
+
+    const transactionTable = `CREATE TABLE IF NOT EXISTS Transaction (
+        TransactionID INT AUTO_INCREMENT PRIMARY KEY,
+        AccountID INT,
+        TransactionType ENUM('Deposit', 'Withdrawal', 'Transfer'),
+        Amount DECIMAL(10, 2),
+        TransactionDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        Description TEXT
+    )`;
+
+    const branchTable = `CREATE TABLE IF NOT EXISTS Branch (
+        BranchID INT AUTO_INCREMENT PRIMARY KEY,
+        Name VARCHAR(100),
+        Address TEXT,
+        ManagerName VARCHAR(100),
+        ContactNumber VARCHAR(15)
+    )`;
+
+    const auditLogTable = `CREATE TABLE IF NOT EXISTS AuditLog (
+        LogID INT AUTO_INCREMENT PRIMARY KEY,
+        Activity TEXT,
+        PerformedBy VARCHAR(50),
+        Timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        IPAddress VARCHAR(45)
+    )`;
+
+    db.query(customerTable, err => {
+        if (err) console.error('Error creating Customer table:', err);
+    });
+    db.query(accountTable, err => {
+        if (err) console.error('Error creating Account table:', err);
+    });
+    db.query(transactionTable, err => {
+        if (err) console.error('Error creating Transaction table:', err);
+    });
+    db.query(branchTable, err => {
+        if (err) console.error('Error creating Branch table:', err);
+    });
+    db.query(auditLogTable, err => {
+        if (err) console.error('Error creating AuditLog table:', err);
+    });
+};
+
+createTables();
